@@ -8,6 +8,8 @@ A small HTTP service in front of [secacloud](https://secacloud.com) (seca mBCA P
 - get a patient's CSV row as JSON
 - download a measurement's PDF
 
+**To save time you can skip the build:** a ready-made image is on Docker Hub as `jayden4sudo/seca-554`. Install Docker, write a `.env`, and run it (see [Quick start](#quick-start-docker-hub)). Prefer to build it yourself? That works too, see [Build and publish](#build-and-publish).
+
 The secacloud web app has no official API. This project uses the same HTTP calls the web app makes (the reseller allows direct HTTP access for web cloud customers). Treat them as undocumented: they can change without notice.
 
 ## How it works
@@ -17,20 +19,45 @@ The secacloud web app has no official API. This project uses the same HTTP calls
 - The browser must be **headed**: secacloud answers headless Chrome with a 403. Docker runs it under Xvfb.
 - The login session is kept in `SECA_SESSION_DIR` (cookies plus the Chrome profile), so restarts reuse it.
 
-## Run with Docker
+## Quick start (Docker Hub)
 
-```sh
-docker build -t seca .
+The quickest way is the prebuilt image [`jayden4sudo/seca-554`](https://hub.docker.com/r/jayden4sudo/seca-554) (`linux/amd64` and `linux/arm64`): `docker run` pulls it for you, so there is nothing to compile. All you need is Docker and a secacloud account with the `analytics125` service.
 
-docker run -d --name seca --restart unless-stopped \
-  --env-file .env \
-  -e SECA_OUT_PDF_DIR=/data/pdf -e SECA_OUT_CSV_DIR=/data/csv \
-  -v seca-data:/data \
-  -p 127.0.0.1:3000:3000 \
-  seca
-```
+1. Create a `.env` file (copy `.env.example`) with your own values:
 
-`.env` (see `.env.example`):
+   ```
+   SECA_HOST=eu.secacloud.com
+   SECA_TENANT=<your tenant id>
+   SECA_USER=<your username>
+   SECA_PASSWORD=<your password>
+   SECA_OUT_PDF_DIR=/data/pdf
+   SECA_OUT_CSV_DIR=/data/csv
+   ```
+
+2. Start it:
+
+   ```sh
+   docker run -d --name seca --restart unless-stopped \
+     --env-file .env \
+     -v seca-data:/data \
+     -p 127.0.0.1:3000:3000 \
+     jayden4sudo/seca-554:latest
+   ```
+
+3. Check it (the first start takes about 30 s because it logs in):
+
+   ```sh
+   docker logs seca                       # expect: "listening on http://0.0.0.0:3000"
+   curl localhost:3000/measurements
+   ```
+
+Update with `docker pull jayden4sudo/seca-554:latest`, then `docker rm -f seca` and run step 2 again (the `seca-data` volume keeps the login session). Pin a version such as `jayden4sudo/seca-554:0.1.0` for reproducible deployments.
+
+You are also free to build the image from source instead, see [Build and publish](#build-and-publish).
+
+### Configuration
+
+Environment variables (see `.env.example`):
 
 | Variable | Meaning |
 |---|---|
@@ -85,12 +112,53 @@ The same code is available as a CLI (`npm run dev -- <command>`, or `node dist/i
 - The upstream allows only a few PDF exports in a short burst (about 4, then 429 for ~30 s). The service waits and retries.
 - `GET /patients/{id}/csv` downloads the whole export on every call.
 
+## Build and publish
+
+Use this if you want to change the code or publish your own image. If you only want to run the service, the prebuilt `jayden4sudo/seca-554` in the [Quick start](#quick-start-docker-hub) saves you the build.
+
+Docker needs `buildx` (included in Docker Desktop and current Docker Engine). The image is `node:24-slim` plus Chromium and Xvfb, started by `docker-entrypoint.sh`. It does not contain `.env`, the login session or any credentials; those come in at run time.
+
+**Build and try locally** (your machine's architecture only):
+
+```sh
+docker build -t seca .
+docker run -d --name seca --env-file .env -v seca-data:/data -p 127.0.0.1:3000:3000 seca
+```
+
+**Publish to Docker Hub** (both architectures, one multi-platform tag):
+
+```sh
+docker login                                   # once; use a Docker Hub access token
+VERSION=0.1.0                                  # keep in step with "version" in package.json
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t jayden4sudo/seca-554:latest \
+  -t jayden4sudo/seca-554:$VERSION \
+  --push .
+```
+
+Verify what was published, then run it as a user would:
+
+```sh
+docker buildx imagetools inspect jayden4sudo/seca-554:latest      # lists linux/amd64 and linux/arm64
+docker run -d --name seca-check --env-file .env -v seca-check:/data -p 127.0.0.1:3001:3000 jayden4sudo/seca-554:latest
+curl localhost:3001/measurements
+docker rm -f seca-check && docker volume rm seca-check
+```
+
+Notes:
+
+- Build only `--platform linux/amd64,linux/arm64`. The official `ghcr.io/puppeteer/puppeteer` image is amd64-only, which is why this image is built from `node:24-slim`.
+- If `buildx` reports that the driver does not support multi-platform builds, run `docker buildx create --use` once (or enable the containerd image store in Docker Desktop).
+- Building the non-native architecture runs under emulation and takes a few minutes. `--push` sends the images straight to the registry; they are not kept in the local image list.
+- Never `COPY` or bake `.env` into the image. `.dockerignore` excludes it.
+- A new repository on Docker Hub is public by default; change it in the repository settings on hub.docker.com if you want it private.
+
 ## Development
 
 ```sh
 npm install
 npm run typecheck
-npm run dev -- serve      # needs Chrome; puppeteer is installed without a browser download in Docker
+npm run dev -- serve      # loads .env; needs a local Chrome (puppeteer downloads one on install)
 ```
 
 `CLAUDE.md` has the details learned from the live system (login form, request flow, pitfalls).
