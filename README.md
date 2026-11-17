@@ -51,7 +51,7 @@ The quickest way is the prebuilt image [`jayden4sudo/seca-554`](https://hub.dock
    curl localhost:3000/measurements
    ```
 
-Update with `docker pull jayden4sudo/seca-554:latest`, then `docker rm -f seca` and run step 2 again (the `seca-data` volume keeps the login session). Pin a version such as `jayden4sudo/seca-554:0.1.0` for reproducible deployments.
+Update with `docker pull jayden4sudo/seca-554:latest`, then `docker rm -f seca` and run step 2 again (the `seca-data` volume keeps the login session). Pin a version such as `jayden4sudo/seca-554:0.1.1` for reproducible deployments.
 
 You are also free to build the image from source instead, see [Build and publish](#build-and-publish).
 
@@ -79,7 +79,7 @@ Errors are `{"error": "..."}` with the status shown. Upstream failures are 502, 
 
 | Method and path | Description |
 |---|---|
-| `POST /patients` | Body: `{externalPatientId, firstName, lastName, birthDate, gender, ethnicity}`, all required. `birthDate` is `YYYY-MM-DD`, `gender` is `Male` or `Female`, `ethnicity` is one of `Afro-American`, `Asian`, `Caucasian`, `South and Central American`, `Japanese`, `Other`. `externalPatientId` (the IDP) is globally unique and may contain only letters, digits and `-`. Returns 201 with `{patientId, externalPatientId, age, height}`. 400 for invalid input, 409 if the IDP exists. |
+| `POST /patients` | Body: `{externalPatientId, firstName, lastName, birthDate, gender, ethnicity}`, all required. `birthDate` is `YYYY-MM-DD`, `gender` is `Male` or `Female`, `ethnicity` is one of `AfroAmerican`, `Asian`, `Caucasian`, `Hispanic`, `Japanese`, `Other`. `externalPatientId` (the IDP) is globally unique and may contain only letters, digits and `-`. Returns 201 with `{patientId, externalPatientId, age, height}`. 400 for invalid input, 409 if the IDP exists. |
 | `GET /measurements` | The newest 30 measurements: `[{measurementId, measurementDate, externalPatientId}]`. `measurementDate` is unix seconds. `externalPatientId` is `null` until the measurement is linked. |
 | `POST /measurements/{measurementId}/link` | Body: `{externalPatientId}`. Links the measurement to that patient. 200 (also when it is already linked to that patient, with no change). **409 if it belongs to a different patient: it is never re-assigned.** 404 for an unknown measurement or patient. |
 | `GET /patients/{externalPatientId}/csv` | The patient's newest row of the CSV export as one JSON object (176 columns, empty cells are `null`, other values stay strings). 404 if there is none. |
@@ -129,7 +129,7 @@ docker run -d --name seca --env-file .env -v seca-data:/data -p 127.0.0.1:3000:3
 
 ```sh
 docker login                                   # once; use a Docker Hub access token
-VERSION=0.1.0                                  # keep in step with "version" in package.json
+VERSION=0.1.1                                  # keep in step with "version" in package.json
 docker buildx build --platform linux/amd64,linux/arm64 \
   -t jayden4sudo/seca-554:latest \
   -t jayden4sudo/seca-554:$VERSION \

@@ -3,14 +3,7 @@ import { HttpError } from "./errors.js";
 import type { Session } from "./session.js";
 
 export const GENDERS = ["Male", "Female"] as const;
-export const ETHNICITIES = [
-  "Afro-American",
-  "Asian",
-  "Caucasian",
-  "South and Central American",
-  "Japanese",
-  "Other",
-] as const;
+export const ETHNICITIES = ["AfroAmerican", "Asian", "Caucasian", "Hispanic", "Japanese", "Other"] as const;
 
 export interface NewPatient {
   /** "IDP": globally unique, letters/digits/'-' only. */
